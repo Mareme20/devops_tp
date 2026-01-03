@@ -34,3 +34,4 @@ jobs:
       # 4. Test final du lancement des services
       - name: Test Docker Compose launch
         run: docker-compose up -d --build
+# Trigger commit 2026
