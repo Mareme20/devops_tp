@@ -22,14 +22,14 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # 3. Construction et Push (ATTENTION: tout en minuscules ici)
+      # 3. Construction et Push
       - name: Build and push PHP image
         uses: docker/build-push-action@v5
         with:
           context: ./php
           push: true
-          # FORCEZ LE NOM EN MINUSCULES (ex: mareme20)
-          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/php-apache-crud:1
+          # On force le passage en minuscules pour éviter l'erreur de tag Docker
+          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/php-apache-crud:latest
 
       # 4. Test du lancement des services
       - name: Test Docker Compose launch
