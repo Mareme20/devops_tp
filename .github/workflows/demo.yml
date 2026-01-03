@@ -32,5 +32,5 @@ jobs:
           tags: ${{ secrets.DOCKER_HUB_USERNAME }}/php-apache-crud:1
 
       # Test du Docker Compose (sans push les autres services)
-      - name:  
+      - name: Test Docker Compose launch
         run: docker-compose up -d --build
