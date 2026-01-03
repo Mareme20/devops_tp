@@ -22,15 +22,15 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # 3. Construction et Push (Correction du format de tag)
+      # 3. Construction et Push vers Docker Hub
       - name: Build and push PHP image
         uses: docker/build-push-action@v5
         with:
           context: ./php
           push: true
-          # FORMAT CORRECT : pseudo/nom-image:version
+          # FORMAT CORRECT : pseudo/nom-image:version (Tout en minuscules)
           tags: mareme20/php-apache-crud:1
 
-      # 4. Test final du lancement
+      # 4. Test final du lancement des services
       - name: Test Docker Compose launch
         run: docker-compose up -d --build
