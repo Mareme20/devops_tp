@@ -1,0 +1,14 @@
+# Docker
+.docker/
+db_data/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# PHP
+vendor/
+.phpunit.result.cache
+
+# Environnement
+.env

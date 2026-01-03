@@ -1,0 +1,42 @@
+services:
+  php-apache: # Aligné ici
+    build: ./php
+    container_name: php_apache_crud
+    ports:
+      - "8080:80"
+    volumes:
+      - ./src:/var/www/html
+    environment:
+      - APACHE_DOCUMENT_ROOT=/var/www/html/public
+    networks:
+      - crud_network
+
+  postgres:
+    image: postgres:13
+    container_name: postgres_crud
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: root
+      POSTGRES_DB: crud_db
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - crud_network
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin_crud
+    ports:
+      - "8081:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: root
+    networks:
+      - crud_network
+
+networks:
+  crud_network:
+    driver: bridge
+
+volumes:
+  db_data:
