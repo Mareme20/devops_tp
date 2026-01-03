@@ -11,26 +11,26 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 1. Connexion à Docker Hub
+      # 1. Connexion à Docker Hub (Utilise vos secrets GitHub)
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
-      # 2. Configuration du builder
+      # 2. Configuration du builder moderne
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # 3. Construction et Push
+      # 3. Construction et Push (Correction du format de tag)
       - name: Build and push PHP image
         uses: docker/build-push-action@v5
         with:
           context: ./php
           push: true
-          # On force le passage en minuscules pour éviter l'erreur de tag Docker
-          tags: mareme20/php/php-apache-crud:1
+          # FORMAT CORRECT : pseudo/nom-image:version
+          tags: mareme20/php-apache-crud:1
 
-      # 4. Test du lancement des services
+      # 4. Test final du lancement
       - name: Test Docker Compose launch
         run: docker-compose up -d --build
