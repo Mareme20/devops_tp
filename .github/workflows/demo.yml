@@ -3,6 +3,7 @@ name: Demo Docker Hub Push
 on:
   push:
     branches: [ "main" ]
+    tags: [ 'v*.*.*' ]  # Déclenche le workflow lors de la création d'un tag (ex: v1.0.0)
 
 jobs:
   build-and-push:
@@ -11,7 +12,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 1. Connexion à Docker Hub (Utilise vos secrets GitHub)
+      # 1. Connexion à Docker Hub
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
@@ -22,16 +23,17 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # 3. Construction et Push vers Docker Hub
+      # 3. Construction et Push vers Docker Hub avec Versionnement
       - name: Build and push PHP image
         uses: docker/build-push-action@v5
         with:
           context: ./php
           push: true
-          # FORMAT CORRECT : pseudo/nom-image:version (Tout en minuscules)
-          tags: mareme2930/php-apache-crud:1
+          # On crée deux tags : 'latest' pour la dernière version et le tag précis (ex: v1.0.0)
+          tags: |
+            mareme2930/php-apache-crud:latest
+            mareme2930/php-apache-crud:${{ github.ref_name }}
 
       # 4. Test final du lancement des services
       - name: Test Docker Compose launch
         run: docker-compose up -d --build
-# Trigger commit 2026
