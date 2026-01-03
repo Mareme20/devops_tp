@@ -29,7 +29,7 @@ jobs:
           context: ./php
           push: true
           # On force le passage en minuscules pour éviter l'erreur de tag Docker
-          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/php-apache-crud:latest
+          tags: mareme20/php/php-apache-crud:1
 
       # 4. Test du lancement des services
       - name: Test Docker Compose launch
