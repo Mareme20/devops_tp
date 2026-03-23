@@ -31,7 +31,8 @@ jobs:
             mareme2930/php-apache-crud:${{ github.ref_name }}
 
       - name: Test Docker Compose launch
-        run: docker-compose up -d --build
+        run: docker compose up -d --build
+
 
       - name: Slack Notification
         uses: rtCamp/action-slack-notify@v2
