@@ -1,94 +1,92 @@
-# Projet DevOps TP : Application CRUD PHP + PostgreSQL (Dockerisée)
+# Projet DevOps TP : Application CRUD PHP + PostgreSQL (Dockerisée avec Nginx SSL)
 
-## Aperçu
-Application web CRUD simple en **PHP 8.2** avec **Apache**, base de données **PostgreSQL 13**, et interface d'administration **pgAdmin**.  
-Gérée entièrement via **Docker Compose** pour un déploiement facile.
+## Aperçu [![Docker](https://img.shields.io/badge/Docker-Compose-blue)](https://docs.docker.com/compose/) [![PHP 8.2](https://img.shields.io/badge/PHP-8.2-green)](https://www.php.net/) [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-13-orange)](https://www.postgresql.org/)
+
+Application web **CRUD** (Create, Read, Update, Delete) pour gérer des utilisateurs en **PHP 8.2** avec **Nginx** (proxy SSL), **Apache/PHP-FPM**, **PostgreSQL 13**, et **pgAdmin**.  
+Déploiement zero-config via **Docker Compose**. HTTPS automatique (certificats auto-signés).
 
 ### Fonctionnalités
-- Lister, créer, modifier, supprimer des utilisateurs (table `users`).
-- Router simple en PHP (`src/public/index.php`).
-- MVC basique : Controllers (`UserController.php`), Models (`User.php`), Views (`liste.php`).
-- Support AJAX/JSON pour interactions frontend.
+- Gestion utilisateurs : Lister, Ajouter, Modifier, Supprimer (table `users` : id, name, email).
+- Routeur PHP simple (`src/public/index.php`) avec support AJAX/JSON.
+- MVC léger : `UserController`, `User` model, vue `liste.php` (CSS/JS inclus).
+- SSL via Nginx (redirect HTTP → HTTPS).
 
 ## Prérequis
-- **Docker** et **Docker Compose** installés.
-- Ports 8080 (app) et 8081 (pgAdmin) libres.
+- **Docker** + **Docker Compose** v2+.
+- Ports libres : **80/443** (app HTTPS), **8083** (pgAdmin).
 
-## Installation & Démarrage (Build & Run)
+⚠️ **HTTPS self-signed** : Acceptez le certificat dans le navigateur (localhost).
+
+## Installation & Démarrage
 ```bash
-# Cloner ou naviguer vers le projet
 cd /home/user/Bureau/devops_tp
 
-# Lancer les services (build auto des images)
+# Build & lancement (images custom)
 docker-compose up --build
 
-# Ou en arrière-plan
+# Background
 docker-compose up -d --build
 ```
 
 ### Accès
-- **Application CRUD** : http://localhost:8080
-- **pgAdmin** : http://localhost:8081  
-  Email: `admin@example.com` | Mot de passe: `root`
-- **Base de données** : PostgreSQL `crud_db`, table `users` (données de test auto-insérées).
+| Service | URL | Credentials |
+|---------|-----|-------------|
+| **App CRUD** | https://localhost (ou http://localhost → redirect) | - |
+| **pgAdmin** | http://localhost:8083 | Email: `admin@example.com`<br>Pass: `root` |
+| **DB Direct** | Host: `postgres`, DB: `crud_db`, User/Pass: `postgres/root` | - |
+
+**Test** : App liste 'Marieme' (donnée init).
 
 ## Architecture
 ```
 devops_tp/
-├── docker-compose.yml     # Services : php-apache, postgres, pgadmin
-├── php/Dockerfile        # Image PHP + extensions Postgres
-├── db/init.sql           # Init DB + table users
+├── docker-compose.yml          # Nginx, php-apache, postgres, pgadmin
+├── php/Dockerfile             # PHP8.2 + PDO/PgSQL + Apache rewrite
+├── nginx/conf/default.conf    # SSL proxy → php-apache
+├── nginx/certs/localhost.*    # Certs self-signed
+├── db/init.sql                # CREATE TABLE users + test data
 ├── src/
-│   ├── public/index.php  # Point d'entrée / Router
+│   ├── public/index.php       # Routeur (index/store/update/delete)
 │   ├── config/database.php
 │   ├── app/controllers/UserController.php
 │   ├── app/models/User.php
-│   └── app/views/users/liste.php
-└── .github/workflows/    # CI/CD (GitHub Actions)
+│   └── app/views/users/liste.php + assets/
+└── .github/workflows/main.yml # CI/CD Docker Hub
 ```
 
+**Flux** :
 ```
-┌─────────────────┐    ┌──────────────┐
-│   Browser       │───▶│ php-apache   │
-│ (localhost:8080)│    │  (port 8080) │
-└─────────────────┘    └──────┬──────┘
-                             │
-                       ┌─────▼──────┐
-                       │ PostgreSQL │
-                       │ (crud_db)  │
-                       └──────┬──────┘
-                              │
-                       ┌─────▼──────┐
-                       │   pgAdmin  │
-                       │ (localhost │
-                       │   :8081)   │
-                       └────────────┘
+Browser (https://localhost:443)
+       ↓ Nginx SSL Proxy (cert self-signed, proxy_pass)
+     php-apache:80 (/public → index.php Router)
+       ↓ PDO/PgSQL
+    PostgreSQL (crud_db, users table)
+          ↑
+       pgAdmin (localhost:8083)
 ```
 
 ## Commandes Utiles
 ```bash
-# Logs en temps réel
-docker-compose logs -f
+# Logs
+docker-compose logs -f nginx    # ou php-apache, postgres
 
-# Arrêt propre (persiste DB via volume)
+# Arrêt (DB persistée via volume)
 docker-compose down
 
-# Reset complet (supprime volumes/DB)
+# Reset DB
 docker-compose down -v
 
-# Reconstruire images
+# Rebuild
 docker-compose build --no-cache
+
+# Shell conteneurs
+docker-compose exec php-apache bash
+docker-compose exec postgres psql -U postgres -d crud_db
 ```
 
-## Dépannage
-- **Port occupé** : Changez `8080:80` ou `8081:80` dans `docker-compose.yml`.
-- **DB non initialisée** : Vérifiez logs `docker-compose logs postgres`, relancez.
-- **Erreurs PHP** : `docker-compose logs php-apache`.
-- **Permissions volumes** : `sudo chown -R $USER:$USER src/`.
-- **Test DB** : Connectez pgAdmin à host `postgres`, DB `crud_db`, user `postgres`/pass `root`.
+## CI/CD (GitHub Actions)
+- **main.yml** : Sur push main/tag, build/push image PHP → Docker Hub (`mareme2930/php-apache-crud`).
+- Tests `docker-compose up`, notif Slack (configurer secrets : DOCKER_HUB_*, SLACK_WEBHOOK).
+ 
 
-## Scripts CI/CD
-- GitHub Actions (`.github/workflows/`) pour tests/deploy (à configurer avec secrets).
-
-Projet prêt à l'emploi ! 🚀
-//
+Projet **100% fonctionnel** 🚀. Contributions bienvenues !
