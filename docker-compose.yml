@@ -1,7 +1,6 @@
 services:
   nginx:
     image: nginx:alpine
-    container_name: nginx_ssl_proxy
     ports:
       - "80:80"
       - "443:443"
@@ -15,7 +14,7 @@ services:
 
   php-apache:
     build: ./php
-    container_name: php_apache_crud
+    image: devops-tp-php-apache
     volumes:
       - ./src:/var/www/html
     environment:
@@ -25,7 +24,6 @@ services:
 
   postgres:
     image: postgres:13
-    container_name: postgres_crud
     restart: always
     environment:
       POSTGRES_USER: postgres
@@ -33,13 +31,17 @@ services:
       POSTGRES_DB: crud_db
     volumes:
       - db_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d crud_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     networks:
       - crud_network
 
   pgadmin:
     image: dpage/pgadmin4
-    container_name: pgadmin_crud
     ports:
       - "8083:80"
     environment:

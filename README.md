@@ -1,9 +1,9 @@
-# Projet DevOps TP : Application CRUD PHP + PostgreSQL (Dockerisée avec Nginx SSL)
+# Projet DevOps TP : Application CRUD PHP + PostgreSQL (Dockerisée avec Nginx SSL + Jenkins)
 
-## Aperçu [![Docker](https://img.shields.io/badge/Docker-Compose-blue)](https://docs.docker.com/compose/) [![PHP 8.2](https://img.shields.io/badge/PHP-8.2-green)](https://www.php.net/) [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-13-orange)](https://www.postgresql.org/)
+## Aperçu [![Docker](https://img.shields.io/badge/Docker-Compose-blue)](https://docs.docker.com/compose/) [![PHP 8.2](https://img.shields.io/badge/PHP-8.2-green)](https://www.php.net/) [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-13-orange)](https://www.postgresql.org/) [![Jenkins](https://img.shields.io/badge/Jenkins-Pipeline-red)](https://www.jenkins.io/)
 
 Application web **CRUD** (Create, Read, Update, Delete) pour gérer des utilisateurs en **PHP 8.2** avec **Nginx** (proxy SSL), **Apache/PHP-FPM**, **PostgreSQL 13**, et **pgAdmin**.  
-Déploiement zero-config via **Docker Compose**. HTTPS automatique (certificats auto-signés).
+Déploiement zero-config via **Docker Compose**. HTTPS automatique (certificats auto-signés). Un pipeline **Jenkins** est inclus pour valider la stack automatiquement.
 
 ### Fonctionnalités
 - Gestion utilisateurs : Lister, Ajouter, Modifier, Supprimer (table `users` : id, name, email).
@@ -40,6 +40,7 @@ docker-compose up -d --build
 ## Architecture
 ```
 devops_tp/
+├── Jenkinsfile               # Pipeline Jenkins : validation, build, smoke test
 ├── docker-compose.yml          # Nginx, php-apache, postgres, pgadmin
 ├── php/Dockerfile             # PHP8.2 + PDO/PgSQL + Apache rewrite
 ├── nginx/conf/default.conf    # SSL proxy → php-apache
@@ -51,7 +52,7 @@ devops_tp/
 │   ├── app/controllers/UserController.php
 │   ├── app/models/User.php
 │   └── app/views/users/liste.php + assets/
-└── .github/workflows/main.yml # CI/CD Docker Hub
+└── db/init.sql                # CREATE TABLE users + donnée de test
 ```
 
 **Flux** :
@@ -84,9 +85,42 @@ docker-compose exec php-apache bash
 docker-compose exec postgres psql -U postgres -d crud_db
 ```
 
-## CI/CD (GitHub Actions)
-- **main.yml** : Sur push main/tag, build/push image PHP → Docker Hub (`mareme2930/php-apache-crud`).
-- Tests `docker-compose up`, notif Slack (configurer secrets : DOCKER_HUB_*, SLACK_WEBHOOK).
- 
+## Jenkins
+Le dépôt contient un [`Jenkinsfile`](Jenkinsfile) prêt à être utilisé dans un job Pipeline Jenkins.
 
-Projet **100% fonctionnel** 🚀. Contributions bienvenues !
+### Ce que fait le pipeline
+- Valide la configuration `docker-compose.yml`.
+- Vérifie la syntaxe de tous les fichiers PHP avec `php -l`.
+- Build l'image `php-apache`.
+- Lance `postgres` et `php-apache`.
+- Attend que PostgreSQL soit prêt.
+- Exécute un smoke test qui rend la page principale et vérifie la présence de l'utilisateur seedé `Marieme`.
+- Nettoie les conteneurs et volumes en fin de job.
+
+### Prérequis Jenkins
+- Jenkins doit tourner sur un agent ayant accès à **Docker** et **Docker Compose v2**.
+- L'utilisateur Jenkins doit pouvoir exécuter `docker`.
+
+### Créer le job
+1. Dans Jenkins, créez un job de type **Pipeline** ou **Multibranch Pipeline**.
+2. Pointez-le vers ce dépôt Git.
+3. Laissez Jenkins utiliser automatiquement le fichier `Jenkinsfile` à la racine.
+4. Lancez un build.
+
+### Lancer Jenkins localement avec Docker
+```bash
+docker run -d \
+  --name jenkins \
+  -p 8080:8080 \
+  -p 50000:50000 \
+  -v jenkins_home:/var/jenkins_home \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  jenkins/jenkins:lts
+```
+
+Ensuite :
+- Ouvrez `http://localhost:8080`
+- Installez les plugins recommandés
+- Créez votre job Pipeline
+
+Projet **fonctionnel** et prêt pour une première intégration Jenkins.
