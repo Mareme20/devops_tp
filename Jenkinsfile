@@ -2,22 +2,26 @@ pipeline {
     agent any
 
     options {
+        // Affiche l'heure de chaque étape dans les logs Jenkins.
         timestamps()
     }
 
     environment {
+        // Isole les ressources Docker de chaque build Jenkins.
         COMPOSE_PROJECT_NAME = "devops-tp-${BUILD_NUMBER}"
     }
 
     stages {
         stage('Validate Compose') {
             steps {
+                // Vérifie que la configuration Docker Compose est valide avant d'aller plus loin.
                 sh 'docker compose config >/dev/null'
             }
         }
 
         stage('Build Image') {
             steps {
+                // Construit l'image PHP/Apache utilisée par le reste du pipeline.
                 sh 'docker compose build php-apache'
             }
         }
@@ -25,6 +29,7 @@ pipeline {
         stage('Lint PHP') {
             steps {
                 sh '''
+                    # Lance un contrôle de syntaxe PHP dans l'image fraîchement buildée.
                     docker run --rm \
                       -v "$PWD/src:/var/www/html" \
                       devops-tp-php-apache \
@@ -35,6 +40,7 @@ pipeline {
 
         stage('Start Services') {
             steps {
+                // Démarre uniquement les services nécessaires à la validation CI.
                 sh 'docker compose up -d postgres php-apache'
             }
         }
@@ -42,6 +48,7 @@ pipeline {
         stage('Wait For Database') {
             steps {
                 sh '''
+                    # Attends que PostgreSQL soit prêt avant de lancer le test applicatif.
                     for i in $(seq 1 20); do
                       if docker compose exec -T postgres pg_isready -U postgres -d crud_db >/dev/null 2>&1; then
                         exit 0
@@ -59,6 +66,7 @@ pipeline {
         stage('Smoke Test') {
             steps {
                 sh '''
+                    # Rend la page principale depuis le conteneur PHP et vérifie la donnée seedée.
                     docker compose exec -T php-apache php -r '
                     $_SERVER["REQUEST_METHOD"] = "GET";
                     $_REQUEST = [];
@@ -80,10 +88,12 @@ pipeline {
 
     post {
         failure {
+            // En cas d'échec, expose les logs Compose pour faciliter le diagnostic dans Jenkins.
             sh 'docker compose logs --no-color || true'
         }
 
         always {
+            // Nettoie systématiquement les conteneurs, le réseau et les volumes du build.
             sh 'docker compose down -v --remove-orphans || true'
         }
     }

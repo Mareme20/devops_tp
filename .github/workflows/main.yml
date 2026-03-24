@@ -2,39 +2,49 @@ name: Demo Docker Hub Push
 
 on:
   push:
+    # Déclenche le workflow sur les pushes vers la branche principale.
     branches: [ "main" ]
+    # Déclenche aussi le workflow lors de la création d'un tag de version.
     tags: [ 'v*.*.*' ]
 
 jobs:
   build-and-push:
+    # Exécute le workflow sur un runner GitHub hébergé par Ubuntu.
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
+        # Récupère le contenu du dépôt pour les étapes suivantes.
         uses: actions/checkout@v4
 
       - name: Login to Docker Hub
+        # Authentifie GitHub Actions auprès de Docker Hub via les secrets du dépôt.
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
       - name: Set up Docker Buildx
+        # Active Buildx pour construire et publier des images Docker proprement.
         uses: docker/setup-buildx-action@v3
 
       - name: Build and push PHP image
+        # Build l'image définie dans ./php puis la publie sur Docker Hub.
         uses: docker/build-push-action@v5
         with:
           context: ./php
           push: true
           tags: |
+            # Tag permanent pour la dernière version publiée.
             mareme2930/php-apache-crud:latest
+            # Tag dérivé du nom de branche ou du tag Git déclencheur.
             mareme2930/php-apache-crud:${{ github.ref_name }}
 
       - name: Test Docker Compose launch
+        # Vérifie que la stack Docker Compose démarre sans erreur immédiate.
         run: docker compose up -d --build
 
-
       - name: Slack Notification
+        # Envoie une notification Slack même si une étape précédente a échoué.
         uses: rtCamp/action-slack-notify@v2
         if: always()
         env:
