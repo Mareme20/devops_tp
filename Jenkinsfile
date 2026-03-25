@@ -34,9 +34,7 @@ pipeline {
         stage('Push to Docker Hub') {
             steps {
                 script {
-                    // Login to Docker Hub
                     docker.withRegistry('https://index.docker.io/v1/', DOCKERHUB_CREDENTIALS_ID) {
-                        // Tag the built image
                         withCredentials([usernamePassword(credentialsId: DOCKERHUB_CREDENTIALS_ID, passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
                             sh """
                                 echo \$DOCKERHUB_PASS | docker login -u \$DOCKERHUB_USER --password-stdin
@@ -48,10 +46,6 @@ pipeline {
                                 docker logout
                             """
                         }
-</xai:function_call 
-
-<xai:function_call name="edit_file">
-<parameter name="path">/home/user/Bureau/devops_tp/Jenkinsfile
                     }
                 }
             }
