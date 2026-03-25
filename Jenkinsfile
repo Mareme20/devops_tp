@@ -9,6 +9,11 @@ pipeline {
     environment {
         // Isole les ressources Docker de chaque build Jenkins.
         COMPOSE_PROJECT_NAME = "devops-tp-${BUILD_NUMBER}"
+        // Docker Hub repository name (update with your Docker Hub repo: username/repo)
+        DOCKERHUB_REPO = 'mareme20/devops-tp'
+        // Jenkins credential IDs (configure in Jenkins)
+        DOCKERHUB_CREDENTIALS_ID = 'dockerhub-creds'
+        SLACK_CHANNEL = '#ci'
     }
 
     stages {
@@ -26,13 +31,39 @@ pipeline {
             }
         }
 
+        stage('Push to Docker Hub') {
+            steps {
+                script {
+                    // Login to Docker Hub
+                    docker.withRegistry('https://index.docker.io/v1/', DOCKERHUB_CREDENTIALS_ID) {
+                        // Tag the built image
+                        withCredentials([usernamePassword(credentialsId: DOCKERHUB_CREDENTIALS_ID, passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
+                            sh """
+                                echo \$DOCKERHUB_PASS | docker login -u \$DOCKERHUB_USER --password-stdin
+                                IMAGE_NAME=\${COMPOSE_PROJECT_NAME}-php-apache
+                                docker tag \$IMAGE_NAME ${DOCKERHUB_REPO}:\${BUILD_NUMBER}
+                                docker tag \$IMAGE_NAME ${DOCKERHUB_REPO}:latest
+                                docker push ${DOCKERHUB_REPO}:\${BUILD_NUMBER}
+                                docker push ${DOCKERHUB_REPO}:latest
+                                docker logout
+                            """
+                        }
+</xai:function_call 
+
+<xai:function_call name="edit_file">
+<parameter name="path">/home/user/Bureau/devops_tp/Jenkinsfile
+                    }
+                }
+            }
+        }
+
         stage('Lint PHP') {
             steps {
                 sh '''
                     # Lance un contrôle de syntaxe PHP dans l'image fraîchement buildée.
                     docker run --rm \
                       -v "$PWD/src:/var/www/html" \
-                      devops-tp-php-apache \
+                      ${COMPOSE_PROJECT_NAME}-php-apache \
                       sh -lc 'find /var/www/html -name "*.php" -print0 | xargs -0 -n1 php -l'
                 '''
             }
@@ -87,7 +118,19 @@ pipeline {
     }
 
     post {
+        success {
+            slackSend(
+                channel: SLACK_CHANNEL,
+                color: 'good',
+                message: "✅ *Pipeline succeeded!* Job: ${JOB_NAME} #${BUILD_NUMBER} (<${BUILD_URL}|Open>)"
+            )
+        }
         failure {
+            slackSend(
+                channel: SLACK_CHANNEL,
+                color: 'danger',
+                message: "❌ *Pipeline failed!* Job: ${JOB_NAME} #${BUILD_NUMBER} (<${BUILD_URL}|Open>)"
+            )
             // En cas d'échec, expose les logs Compose pour faciliter le diagnostic dans Jenkins.
             sh 'docker compose logs --no-color || true'
         }
