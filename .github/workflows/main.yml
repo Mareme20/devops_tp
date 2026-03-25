@@ -34,9 +34,7 @@ jobs:
           context: ./php
           push: true
           tags: |
-            # Tag permanent pour la dernière version publiée.
             mareme2930/php-apache-crud:latest
-            # Tag dérivé du nom de branche ou du tag Git déclencheur.
             mareme2930/php-apache-crud:${{ github.ref_name }}
 
       - name: Test Docker Compose launch
