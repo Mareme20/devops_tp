@@ -9,18 +9,17 @@ pipeline {
     environment {
         // Isole les ressources Docker de chaque build Jenkins.
         COMPOSE_PROJECT_NAME = "devops-tp-${BUILD_NUMBER}"
-        // Docker Hub repository name (update with your Docker Hub repo: username/repo)
-        DOCKERHUB_REPO = 'mareme20/devops-tp'
+        NEXUS_IMAGE_REPO = 'devops-tp'
         // Jenkins credential IDs (configure in Jenkins)
-        DOCKERHUB_CREDENTIALS_ID = 'dockerhub-creds'
+        NEXUS_CREDENTIALS_ID = 'nexus-creds'
         SLACK_CHANNEL = '#ci'
     }
 
     stages {
         stage('Validate Compose') {
             steps {
-                // Vérifie que la configuration Docker Compose est valide avant d'aller plus loin.
-                sh 'docker compose config >/dev/null'
+                // Vérifie aussi les profils Nexus/ELK pour éviter une erreur tardive dans le pipeline.
+                sh 'docker compose --profile artifact-repo --profile observability config >/dev/null'
             }
         }
 
@@ -28,26 +27,6 @@ pipeline {
             steps {
                 // Construit l'image PHP/Apache utilisée par le reste du pipeline.
                 sh 'docker compose build php-apache'
-            }
-        }
-
-        stage('Push to Docker Hub') {
-            steps {
-                script {
-                    docker.withRegistry('https://index.docker.io/v1/', DOCKERHUB_CREDENTIALS_ID) {
-                        withCredentials([usernamePassword(credentialsId: DOCKERHUB_CREDENTIALS_ID, passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
-                            sh """
-                                echo \$DOCKERHUB_PASS | docker login -u \$DOCKERHUB_USER --password-stdin
-                                IMAGE_NAME=\${COMPOSE_PROJECT_NAME}-php-apache
-                                docker tag \$IMAGE_NAME ${DOCKERHUB_REPO}:\${BUILD_NUMBER}
-                                docker tag \$IMAGE_NAME ${DOCKERHUB_REPO}:latest
-                                docker push ${DOCKERHUB_REPO}:\${BUILD_NUMBER}
-                                docker push ${DOCKERHUB_REPO}:latest
-                                docker logout
-                            """
-                        }
-                    }
-                }
             }
         }
 
@@ -107,6 +86,37 @@ pipeline {
                     echo "Smoke test OK\\n";
                     '
                 '''
+            }
+        }
+
+        stage('Start Nexus') {
+            steps {
+                sh '''
+                    # Démarre Nexus et crée automatiquement un repository Docker hosted.
+                    docker compose --profile artifact-repo up -d nexus
+                    docker compose --profile artifact-repo run --rm nexus-init
+                '''
+            }
+        }
+
+        stage('Push to Nexus') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: NEXUS_CREDENTIALS_ID, passwordVariable: 'NEXUS_PASS', usernameVariable: 'NEXUS_USER')]) {
+                    sh '''
+                        # Publie l'image validée dans le registry Docker exposé par Nexus.
+                        # Le registry peut être sur localhost (Jenkins sur l'hôte) ou host.docker.internal (Jenkins en conteneur).
+                        TARGET_REGISTRY="${NEXUS_DOCKER_REGISTRY:-host.docker.internal:8085}"
+                        IMAGE_NAME=${COMPOSE_PROJECT_NAME}-php-apache
+                        TARGET_IMAGE=${TARGET_REGISTRY}/${NEXUS_IMAGE_REPO}
+
+                        echo "$NEXUS_PASS" | docker login "$TARGET_REGISTRY" -u "$NEXUS_USER" --password-stdin
+                        docker tag "$IMAGE_NAME" "${TARGET_IMAGE}:${BUILD_NUMBER}"
+                        docker tag "$IMAGE_NAME" "${TARGET_IMAGE}:latest"
+                        docker push "${TARGET_IMAGE}:${BUILD_NUMBER}"
+                        docker push "${TARGET_IMAGE}:latest"
+                        docker logout "$TARGET_REGISTRY"
+                    '''
+                }
             }
         }
     }
