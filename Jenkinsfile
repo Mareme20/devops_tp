@@ -9,6 +9,7 @@ pipeline {
     environment {
         // Isole les ressources Docker de chaque build Jenkins.
         COMPOSE_PROJECT_NAME = "devops-tp-${BUILD_NUMBER}"
+        APP_IMAGE = 'devops-tp-php-apache'
         NEXUS_IMAGE_REPO = 'devops-tp'
         // Jenkins credential IDs (configure in Jenkins)
         NEXUS_CREDENTIALS_ID = 'nexus-creds'
@@ -36,7 +37,7 @@ pipeline {
                     # Lance un contrôle de syntaxe PHP dans l'image fraîchement buildée.
                     docker run --rm \
                       -v "$PWD/src:/var/www/html" \
-                      ${COMPOSE_PROJECT_NAME}-php-apache \
+                      ${APP_IMAGE} \
                       sh -lc 'find /var/www/html -name "*.php" -print0 | xargs -0 -n1 php -l'
                 '''
             }
@@ -106,7 +107,7 @@ pipeline {
                         # Publie l'image validée dans le registry Docker exposé par Nexus.
                         # Le registry peut être sur localhost (Jenkins sur l'hôte) ou host.docker.internal (Jenkins en conteneur).
                         TARGET_REGISTRY="${NEXUS_DOCKER_REGISTRY:-host.docker.internal:8085}"
-                        IMAGE_NAME=${COMPOSE_PROJECT_NAME}-php-apache
+                        IMAGE_NAME=${APP_IMAGE}
                         TARGET_IMAGE=${TARGET_REGISTRY}/${NEXUS_IMAGE_REPO}
 
                         echo "$NEXUS_PASS" | docker login "$TARGET_REGISTRY" -u "$NEXUS_USER" --password-stdin
@@ -123,18 +124,30 @@ pipeline {
 
     post {
         success {
-            slackSend(
-                channel: SLACK_CHANNEL,
-                color: 'good',
-                message: "✅ *Pipeline succeeded!* Job: ${JOB_NAME} #${BUILD_NUMBER} (<${BUILD_URL}|Open>)"
-            )
+            script {
+                try {
+                    slackSend(
+                        channel: SLACK_CHANNEL,
+                        color: 'good',
+                        message: "✅ *Pipeline succeeded!* Job: ${JOB_NAME} #${BUILD_NUMBER} (<${BUILD_URL}|Open>)"
+                    )
+                } catch (err) {
+                    echo "Slack notification skipped: ${err.getMessage()}"
+                }
+            }
         }
         failure {
-            slackSend(
-                channel: SLACK_CHANNEL,
-                color: 'danger',
-                message: "❌ *Pipeline failed!* Job: ${JOB_NAME} #${BUILD_NUMBER} (<${BUILD_URL}|Open>)"
-            )
+            script {
+                try {
+                    slackSend(
+                        channel: SLACK_CHANNEL,
+                        color: 'danger',
+                        message: "❌ *Pipeline failed!* Job: ${JOB_NAME} #${BUILD_NUMBER} (<${BUILD_URL}|Open>)"
+                    )
+                } catch (err) {
+                    echo "Slack notification skipped: ${err.getMessage()}"
+                }
+            }
             // En cas d'échec, expose les logs Compose pour faciliter le diagnostic dans Jenkins.
             sh 'docker compose logs --no-color || true'
         }
