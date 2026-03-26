@@ -13,7 +13,6 @@ pipeline {
         NEXUS_IMAGE_REPO = 'devops-tp'
         // Jenkins credential IDs (configure in Jenkins)
         NEXUS_CREDENTIALS_ID = 'nexus-creds'
-        SLACK_CHANNEL = '#ci'
     }
 
     stages {
@@ -93,7 +92,15 @@ pipeline {
         stage('Start Nexus') {
             steps {
                 sh '''
-                    # Démarre Nexus et crée automatiquement un repository Docker hosted.
+                    # Réutilise un Nexus déjà démarré sur l'hôte si présent,
+                    # sinon démarre celui du projet.
+                    EXISTING_NEXUS="$(docker ps --filter ancestor=sonatype/nexus3 --format '{{.Names}}' | head -n1)"
+
+                    if [ -n "$EXISTING_NEXUS" ]; then
+                      echo "Nexus already running: $EXISTING_NEXUS"
+                      exit 0
+                    fi
+
                     docker compose --profile artifact-repo up -d nexus
                     docker compose --profile artifact-repo run --rm nexus-init
                 '''
@@ -106,7 +113,28 @@ pipeline {
                     sh '''
                         # Publie l'image validée dans le registry Docker exposé par Nexus.
                         # Le registry peut être sur localhost (Jenkins sur l'hôte) ou host.docker.internal (Jenkins en conteneur).
-                        TARGET_REGISTRY="${NEXUS_DOCKER_REGISTRY:-host.docker.internal:8085}"
+                        resolve_registry() {
+                          for candidate in "${NEXUS_DOCKER_REGISTRY:-}" "host.docker.internal:8085" "localhost:8085"; do
+                            if [ -z "$candidate" ]; then
+                              continue
+                            fi
+
+                            code="$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout 2 "http://${candidate}/v2/" || true)"
+                            if [ "$code" = "200" ] || [ "$code" = "401" ]; then
+                              echo "$candidate"
+                              return 0
+                            fi
+                          done
+
+                          return 1
+                        }
+
+                        TARGET_REGISTRY="$(resolve_registry)"
+                        if [ -z "$TARGET_REGISTRY" ]; then
+                          echo "No reachable Nexus Docker registry found." >&2
+                          exit 1
+                        fi
+
                         IMAGE_NAME=${APP_IMAGE}
                         TARGET_IMAGE=${TARGET_REGISTRY}/${NEXUS_IMAGE_REPO}
 
@@ -124,30 +152,10 @@ pipeline {
 
     post {
         success {
-            script {
-                try {
-                    slackSend(
-                        channel: SLACK_CHANNEL,
-                        color: 'good',
-                        message: "✅ *Pipeline succeeded!* Job: ${JOB_NAME} #${BUILD_NUMBER} (<${BUILD_URL}|Open>)"
-                    )
-                } catch (err) {
-                    echo "Slack notification skipped: ${err.getMessage()}"
-                }
-            }
+            echo "Pipeline succeeded: ${JOB_NAME} #${BUILD_NUMBER}"
         }
         failure {
-            script {
-                try {
-                    slackSend(
-                        channel: SLACK_CHANNEL,
-                        color: 'danger',
-                        message: "❌ *Pipeline failed!* Job: ${JOB_NAME} #${BUILD_NUMBER} (<${BUILD_URL}|Open>)"
-                    )
-                } catch (err) {
-                    echo "Slack notification skipped: ${err.getMessage()}"
-                }
-            }
+            echo "Pipeline failed: ${JOB_NAME} #${BUILD_NUMBER}"
             // En cas d'échec, expose les logs Compose pour faciliter le diagnostic dans Jenkins.
             sh 'docker compose logs --no-color || true'
         }
