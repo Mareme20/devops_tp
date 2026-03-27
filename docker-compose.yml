@@ -14,7 +14,6 @@ services:
 
   php-apache:
     build: ./php
-    # Tag explicite pour que Jenkins puisse réutiliser facilement l'image buildée.
     image: devops-tp-php-apache
     volumes:
       - ./src:/var/www/html
@@ -32,10 +31,8 @@ services:
       POSTGRES_DB: crud_db
     volumes:
       - db_data:/var/lib/postgresql/data
-      # Le script SQL est monté en lecture seule pour initialiser la base en CI comme en local.
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      # Permet au pipeline d'attendre un PostgreSQL vraiment prêt avant le smoke test.
       test: ["CMD-SHELL", "pg_isready -U postgres -d crud_db"]
       interval: 5s
       timeout: 5s
@@ -89,9 +86,14 @@ services:
     ports:
       - "9200:9200"
     environment:
-      discovery.type: single-node
-      xpack.security.enabled: "false"
-      ES_JAVA_OPTS: -Xms512m -Xmx512m
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      # RÉDUCTION MÉMOIRE ICI (256m)
+      - "ES_JAVA_OPTS=-Xms256m -Xmx256m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
     volumes:
       - elasticsearch_data:/usr/share/elasticsearch/data
     networks:
@@ -105,6 +107,9 @@ services:
       - elasticsearch
     ports:
       - "5044:5044"
+    environment:
+      # RÉDUCTION MÉMOIRE LOGSTASH AUSSI
+      - "LS_JAVA_OPTS=-Xms256m -Xmx256m"
     volumes:
       - ./elk/logstash/pipeline/logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
     networks:
@@ -119,7 +124,9 @@ services:
     ports:
       - "5601:5601"
     environment:
-      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      # LIMITE MÉMOIRE POUR KIBANA
+      - NODE_OPTIONS=--max-old-space-size=512
     networks:
       - crud_network
 
