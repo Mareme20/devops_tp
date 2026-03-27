@@ -113,7 +113,7 @@ pipeline {
                 withCredentials([usernamePassword(credentialsId: NEXUS_CREDENTIALS_ID, passwordVariable: 'NEXUS_PASS', usernameVariable: 'NEXUS_USER')]) {
                     sh '''
                         # On définit directement l'IP de la passerelle Docker (ou localhost si Jenkins est sur l'hôte)
-                        TARGET_REGISTRY="172.17.0.14:8085"
+                        TARGET_REGISTRY="192.168.1.14:8085"
                         
                         IMAGE_NAME=${APP_IMAGE}
                         TARGET_IMAGE=${TARGET_REGISTRY}/${NEXUS_IMAGE_REPO}
