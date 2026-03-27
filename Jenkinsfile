@@ -14,6 +14,7 @@ pipeline {
         // Jenkins credential IDs (configure in Jenkins)
         NEXUS_CREDENTIALS_ID = 'nexus-creds'
     }
+    
 
     stages {
         stage('Validate Compose') {
