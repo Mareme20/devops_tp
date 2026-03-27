@@ -108,42 +108,25 @@ pipeline {
             }
         }
 
-        stage('Push to Nexus') {
+                stage('Push to Nexus') {
             steps {
                 withCredentials([usernamePassword(credentialsId: NEXUS_CREDENTIALS_ID, passwordVariable: 'NEXUS_PASS', usernameVariable: 'NEXUS_USER')]) {
                     sh '''
-                        # Publie l'image validée dans le registry Docker exposé par Nexus.
-                        # Le registry peut être sur localhost (Jenkins sur l'hôte) ou host.docker.internal (Jenkins en conteneur).
-                        resolve_registry() {
-                          for candidate in "${NEXUS_DOCKER_REGISTRY:-}" "host.docker.internal:8085" "localhost:8085"; do
-                            if [ -z "$candidate" ]; then
-                              continue
-                            fi
-
-                            code="$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout 2 "http://${candidate}/v2/" || true)"
-                            if [ "$code" = "200" ] || [ "$code" = "401" ]; then
-                              echo "$candidate"
-                              return 0
-                            fi
-                          done
-
-                          return 1
-                        }
-
-                        TARGET_REGISTRY="$(resolve_registry)"
-                        if [ -z "$TARGET_REGISTRY" ]; then
-                          echo "No reachable Nexus Docker registry found." >&2
-                          exit 1
-                        fi
-
+                        # On définit directement l'IP de la passerelle Docker (ou localhost si Jenkins est sur l'hôte)
+                        TARGET_REGISTRY="172.17.0.1:8085"
+                        
                         IMAGE_NAME=${APP_IMAGE}
                         TARGET_IMAGE=${TARGET_REGISTRY}/${NEXUS_IMAGE_REPO}
 
+                        # Connexion
                         echo "$NEXUS_PASS" | docker login "$TARGET_REGISTRY" -u "$NEXUS_USER" --password-stdin
+                        
+                        # Tag et Envoi
                         docker tag "$IMAGE_NAME" "${TARGET_IMAGE}:${BUILD_NUMBER}"
                         docker tag "$IMAGE_NAME" "${TARGET_IMAGE}:latest"
                         docker push "${TARGET_IMAGE}:${BUILD_NUMBER}"
                         docker push "${TARGET_IMAGE}:latest"
+                        
                         docker logout "$TARGET_REGISTRY"
                     '''
                 }
